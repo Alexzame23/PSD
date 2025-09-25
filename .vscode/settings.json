@@ -1,0 +1,9 @@
+{
+    "makefile.configureOnOpen": false,
+    "files.associations": {
+        "servergame.h": "c",
+        "game.h": "c",
+        "clientgame.h": "c",
+        "pthread.h": "c"
+    }
+}
