@@ -25,6 +25,12 @@ void receiveMsg(int socket, char *message){
 		showError("Error al recibir el mensaje");
 }
 
+void sendUi(int socket, unsigned int code){
+
+	if(send(socket, &code, sizeof(code), 0) < 0)
+		showError("Error al enviar el code");
+}
+
 unsigned int readBet (){
 
 	int isValid, bet=0;
@@ -130,17 +136,45 @@ int main(int argc, char *argv[]){
 	receiveMsg(socketfd, playerName);
 	printf("You are playing againts %s\n\n", playerName);
 	printf("Game starts!\n\n");
-	unsigned int stack;
-	do{
-		code = receiveUi(socketfd);
-		if(code == TURN_BET){
-			receiveUi(socketfd);
-		}
-		else if(code == TURN_PLAY_WAIT){
 
-		}
-		else{
-			
+	unsigned int stack;
+	unsigned int bet;
+	code = receiveUi(socketfd);
+
+	do{
+		switch (code){
+			case TURN_BET:
+				stack = receiveUi(socketfd);
+				printf("--- BET STAGE ---\n");
+                printf("You have %u chips. Introduce your bet (1-%d): \n", stack, MAX_BET);
+				bet = readBet();
+				sendUi(socketfd, bet);
+				code = receiveUi(socketfd);
+				if(code == TURN_BET_OK){
+					printf("Your bet was registered correctly\n\n");
+				}
+				break;
+			case TURN_PLAY:
+				
+				break;
+			case TURN_PLAY_OUT:
+
+				break;
+			case TURN_PLAY_RIVAL_DONE:
+
+				break;
+			case TURN_PLAY_WAIT:
+
+				break;
+			case TURN_GAME_WIN:
+				printf("Congratulations, you win!!! You're an expert gambling addict!!\n\n");
+				break;
+			case TURN_GAME_LOSE:
+				printf("Noob\n\n");
+				endOfGame = TRUE;
+				break;
+			default:
+				break;
 		}
 
 	}while(!endOfGame);

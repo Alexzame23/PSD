@@ -2,7 +2,6 @@
 #include <pthread.h>
 
 void sendMsgToPlayer(int socketClient, char *message){	
-
 	int l = strlen(message);
 	if(send(socketClient, &l, sizeof(l), 0) < 0)
 		showError("Error al enviar la longitud del mensaje");
@@ -10,8 +9,12 @@ void sendMsgToPlayer(int socketClient, char *message){
 		showError("Error al enviar el mensaje");
 }
 
-void receiveMsg(int socketClient, char *message){
+void sendUi(int socketClient, unsigned int code){
+	if(send(socketClient, &code, sizeof(code), 0) < 0)
+		showError("Error al enviar el code");
+}
 
+void receiveMsg(int socketClient, char *message){
 	int l;
 	memset(message,0,STRING_LENGTH);
 	if(recv(socketClient, &l, sizeof(l), 0) <= 0)
@@ -20,10 +23,11 @@ void receiveMsg(int socketClient, char *message){
 		showError("Error al recibir el mensaje");
 }
 
-void sendUi(int socketClient, unsigned int code)
-{
-	if(send(socketClient, &code, sizeof(code), 0) < 0)
-		showError("Error al enviar el code");
+unsigned int receiveUi (int socket){
+	unsigned int l;
+	if(recv(socket,&l,sizeof(l),0) <= 0)
+		showError("Error al recibir el code");
+	return l;
 }
 
 tPlayer getNextPlayer (tPlayer currentPlayer){
@@ -133,6 +137,7 @@ void *gameThread(void* args){
 	int socket2 = threadArgs->socketPlayer2;
 	free(args);
 	tSession sesion;
+	tPlayer current;
 	unsigned int endOfGame = FALSE;	
 
 	receiveMsg(socket1, sesion.player1Name);
@@ -143,11 +148,28 @@ void *gameThread(void* args){
 	sendMsgToPlayer(socket1, sesion.player2Name);
 	sendMsgToPlayer(socket2, sesion.player1Name);
 
-	initSession(&sesion);
-	et1, TURN_BET);
-	et1, sesion.player1Stack);
-	et2, TURN_PLAY_WAIT);
-	do{
+	initSession(&sesion);	
+
+	//**Bet Stage**
+	//Player 1		
+	sendUi(socket1, TURN_BET);
+	sesion.player1Bet = receiveUi(socket1);
+	while(sesion.player1Bet < 1 || sesion.player1Bet > MAX_BET || sesion.player1Stack-sesion.player1Bet < 0){
+		sendUi(socket1, TURN_BET);
+		sesion.player1Bet = receiveUi(socket1);
+	}
+	sendUi(socket1, TURN_BET_OK);
+	//Player 2
+	sendUi(socket2, TURN_BET);
+	sesion.player2Bet = receiveUi(socket2);
+	while(sesion.player2Bet < 1 || sesion.player2Bet > MAX_BET || sesion.player2Stack-sesion.player2Bet < 0){
+		sendUi(socket2, TURN_BET);
+		sesion.player2Bet = receiveUi(socket1);
+	}
+	sendUi(socket2, TURN_BET_OK);
+	
+	do{	
+
 
 	}while(!endOfGame);
 	
