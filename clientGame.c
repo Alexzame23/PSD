@@ -139,6 +139,7 @@ int main(int argc, char *argv[]){
 
 	unsigned int stack;
 	unsigned int bet;
+
 	code = receiveUi(socketfd);
 
 	do{
@@ -152,7 +153,12 @@ int main(int argc, char *argv[]){
 				code = receiveUi(socketfd);
 				if(code == TURN_BET_OK){
 					printf("Your bet was registered correctly\n\n");
+					code = receiveUi(socketfd);
+
 				}
+				break;
+			case TURN_BET_OK:
+				printf("Your bet was registered correctly\n\n");
 				break;
 			case TURN_PLAY:
 				
@@ -161,7 +167,7 @@ int main(int argc, char *argv[]){
 
 				break;
 			case TURN_PLAY_RIVAL_DONE:
-
+				printf("Your rival finish their turn. Now it's your turn\n\n");
 				break;
 			case TURN_PLAY_WAIT:
 

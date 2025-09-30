@@ -14,6 +14,14 @@ void sendUi(int socketClient, unsigned int code){
 		showError("Error al enviar el code");
 }
 
+void sendDeck(int socketClient, tDeck deck){
+	int l = deck.numCards;
+	if(send(socketClient, &l, l*sizeof(deck.cards), 0) < 0)
+		showError("Error sending the size of the deck");
+	if(send(socketClient, deck.cards, l, 0) < 0)
+		showError("Error sending the deck");
+}
+
 void receiveMsg(int socketClient, char *message){
 	int l;
 	memset(message,0,STRING_LENGTH);
@@ -40,6 +48,27 @@ tPlayer getNextPlayer (tPlayer currentPlayer){
 			next = player1;
 
 	return next;
+}
+
+int currentSocket(tPlayer current, int s1, int s2){
+	return (current == 0) ? s1 : s2;
+}
+
+void swapPlayers(tPlayer current, tDeck **deck, unsigned int **stack, int **s1, int *s2, tSession *sesion){
+	if(current == 0){
+		int *aux = *s1;
+		*s1 = *s2;
+		*s2 = *aux;
+		*deck = &sesion->player1Deck;
+		*stack = &sesion->player1Stack;
+	}
+	else{
+		int *aux = *s2;
+		*s2 = *s1;
+		*s1 = *aux;
+		*deck = &sesion->player2Deck;
+		*stack = &sesion->player2Stack;
+	}
 }
 
 void initDeck (tDeck *deck){
@@ -135,10 +164,15 @@ void *gameThread(void* args){
 	tThreadArgs* threadArgs = (tThreadArgs*) args;
 	int socket1 = threadArgs->socketPlayer1;
 	int socket2 = threadArgs->socketPlayer2;
+	int *currentS = socket1;
+	int *otherS = socket2;
 	free(args);
 	tSession sesion;
-	tPlayer current;
+	tPlayer current = player1;
+	tDeck *currentDeck = &sesion.player1Deck;
+	unsigned int *currentStack = &sesion.player1Stack;
 	unsigned int endOfGame = FALSE;	
+	unsigned int code;
 
 	receiveMsg(socket1, sesion.player1Name);
 	receiveMsg(socket2, sesion.player2Name);
@@ -152,26 +186,39 @@ void *gameThread(void* args){
 
 	//**Bet Stage**
 	//Player 1		
-	sendUi(socket1, TURN_BET);
-	sesion.player1Bet = receiveUi(socket1);
+	sendUi(currentS, TURN_BET);
+	sesion.player1Bet = receiveUi(currentS);
 	while(sesion.player1Bet < 1 || sesion.player1Bet > MAX_BET || sesion.player1Stack-sesion.player1Bet < 0){
-		sendUi(socket1, TURN_BET);
-		sesion.player1Bet = receiveUi(socket1);
+		sendUi(currentS, TURN_BET);
+		sesion.player1Bet = receiveUi(currentS);
 	}
-	sendUi(socket1, TURN_BET_OK);
+	sendUi(currentS, TURN_BET_OK);
 	//Player 2
-	sendUi(socket2, TURN_BET);
-	sesion.player2Bet = receiveUi(socket2);
+	sendUi(otherS, TURN_BET);
+	sesion.player2Bet = receiveUi(otherS);
 	while(sesion.player2Bet < 1 || sesion.player2Bet > MAX_BET || sesion.player2Stack-sesion.player2Bet < 0){
-		sendUi(socket2, TURN_BET);
+		sendUi(otherS, TURN_BET);
 		sesion.player2Bet = receiveUi(socket1);
 	}
-	sendUi(socket2, TURN_BET_OK);
-	
-	do{	
+	sendUi(otherS, TURN_BET_OK);
+	//**Play stage**
+	for(int i = 0; i < 2; ++i){
+		sendUi(currentS, TURN_PLAY);
+		sendUi(otherS, TURN_PLAY_WAIT);
 
+		sendUi(currentS, calculatePoints(currentDeck));
+		sendDeck(currentS, *currentDeck);
 
-	}while(!endOfGame);
+		code = receiveUi(currentS);
+
+		while(code == TURN_PLAY_HIT){
+
+		}
+
+		sendUi(otherS, TURN_PLAY_RIVAL_DONE);
+		current = getNextPlayer(current);
+		swapPlayers(current, currentDeck, currentStack, currentS, otherS, &sesion);
+	}
 	
 }
 
