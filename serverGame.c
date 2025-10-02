@@ -15,8 +15,8 @@ void sendUi(int socketClient, unsigned int code){
 }
 
 void sendDeck(int socketClient, tDeck deck){
-	int l = deck.numCards;
-	if(send(socketClient, &l, l*sizeof(deck.cards), 0) < 0)
+	int l = deck.numCards * sizeof(unsigned int);
+	if(send(socketClient, &deck.numCards, sizeof(deck.numCards), 0) < 0)
 		showError("Error sending the size of the deck");
 	if(send(socketClient, deck.cards, l, 0) < 0)
 		showError("Error sending the deck");
@@ -54,18 +54,18 @@ int currentSocket(tPlayer current, int s1, int s2){
 	return (current == 0) ? s1 : s2;
 }
 
-void swapPlayers(tPlayer current, tDeck **deck, unsigned int **stack, int **s1, int *s2, tSession *sesion){
+void swapPlayers(tPlayer current, tDeck **deck, unsigned int **stack, int **s1, int **s2, tSession *sesion){
 	if(current == 0){
 		int *aux = *s1;
 		*s1 = *s2;
-		*s2 = *aux;
+		*s2 = aux;
 		*deck = &sesion->player1Deck;
 		*stack = &sesion->player1Stack;
 	}
 	else{
 		int *aux = *s2;
 		*s2 = *s1;
-		*s1 = *aux;
+		*s1 = aux;
 		*deck = &sesion->player2Deck;
 		*stack = &sesion->player2Stack;
 	}
@@ -164,8 +164,8 @@ void *gameThread(void* args){
 	tThreadArgs* threadArgs = (tThreadArgs*) args;
 	int socket1 = threadArgs->socketPlayer1;
 	int socket2 = threadArgs->socketPlayer2;
-	int *currentS = socket1;
-	int *otherS = socket2;
+	int *currentS = &socket1;
+	int *otherS = &socket2;
 	free(args);
 	tSession sesion;
 	tPlayer current = player1;
@@ -177,7 +177,7 @@ void *gameThread(void* args){
 	receiveMsg(socket1, sesion.player1Name);
 	receiveMsg(socket2, sesion.player2Name);
 
-	printf("Initialising a new game with the players %s and %s", sesion.player1Name, sesion.player2Name);
+	printf("Initialising a new game with the players %s and %s\n", sesion.player1Name, sesion.player2Name);
 
 	sendMsgToPlayer(socket1, sesion.player2Name);
 	sendMsgToPlayer(socket2, sesion.player1Name);
@@ -185,41 +185,54 @@ void *gameThread(void* args){
 	initSession(&sesion);	
 
 	//**Bet Stage**
-	//Player 1		
-	sendUi(currentS, TURN_BET);
-	sesion.player1Bet = receiveUi(currentS);
-	while(sesion.player1Bet < 1 || sesion.player1Bet > MAX_BET || sesion.player1Stack-sesion.player1Bet < 0){
-		sendUi(currentS, TURN_BET);
-		sesion.player1Bet = receiveUi(currentS);
+	//Player 1
+	sendUi(*currentS, TURN_BET);
+	sendUi(*currentS, sesion.player1Stack);
+	sesion.player1Bet = receiveUi(*currentS);
+	while(sesion.player1Bet < 1 || sesion.player1Bet > MAX_BET || sesion.player1Stack<sesion.player1Bet){
+		sendUi(*currentS, TURN_BET);
+		sesion.player1Bet = receiveUi(*currentS);
 	}
-	sendUi(currentS, TURN_BET_OK);
+	sendUi(*currentS, TURN_BET_OK);
 	//Player 2
-	sendUi(otherS, TURN_BET);
-	sesion.player2Bet = receiveUi(otherS);
-	while(sesion.player2Bet < 1 || sesion.player2Bet > MAX_BET || sesion.player2Stack-sesion.player2Bet < 0){
-		sendUi(otherS, TURN_BET);
-		sesion.player2Bet = receiveUi(socket1);
+	sendUi(*otherS, TURN_BET);
+	sendUi(*otherS, sesion.player2Stack);
+	sesion.player2Bet = receiveUi(*otherS);
+	while(sesion.player2Bet < 1 || sesion.player2Bet > MAX_BET || sesion.player2Stack<sesion.player2Bet){
+		sendUi(*otherS, TURN_BET);
+		sesion.player2Bet = receiveUi(*otherS);
 	}
-	sendUi(otherS, TURN_BET_OK);
+	sendUi(*otherS, TURN_BET_OK);
+
+	for(int i = 0; i < 2; i++){
+    unsigned int card = getRandomCard(&sesion.gameDeck);
+    sesion.player1Deck.cards[sesion.player1Deck.numCards] = card;
+    sesion.player1Deck.numCards++;
+    
+    card = getRandomCard(&sesion.gameDeck);
+    sesion.player2Deck.cards[sesion.player2Deck.numCards] = card;
+    sesion.player2Deck.numCards++;
+	}
+	
 	//**Play stage**
 	for(int i = 0; i < 2; ++i){
-		sendUi(currentS, TURN_PLAY);
-		sendUi(otherS, TURN_PLAY_WAIT);
+		sendUi(*currentS, TURN_PLAY);
+		sendUi(*otherS, TURN_PLAY_WAIT);
 
-		sendUi(currentS, calculatePoints(currentDeck));
-		sendDeck(currentS, *currentDeck);
+		sendUi(*currentS, calculatePoints(currentDeck));
+		sendDeck(*currentS, *currentDeck);
 
-		code = receiveUi(currentS);
+		code = receiveUi(*currentS);
 
 		while(code == TURN_PLAY_HIT){
 
 		}
 
-		sendUi(otherS, TURN_PLAY_RIVAL_DONE);
+		sendUi(*otherS, TURN_PLAY_RIVAL_DONE);
 		current = getNextPlayer(current);
-		swapPlayers(current, currentDeck, currentStack, currentS, otherS, &sesion);
+		swapPlayers(current, &currentDeck, &currentStack, &currentS, &otherS, &sesion);
 	}
-	
+	return NULL;	
 }
 
 

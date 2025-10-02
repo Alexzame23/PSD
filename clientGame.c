@@ -25,6 +25,18 @@ void receiveMsg(int socket, char *message){
 		showError("Error al recibir el mensaje");
 }
 
+void receiveDeck(int socket, tDeck *deck){
+    // Primero recibimos cuántas cartas vienen en el deck
+    if(recv(socket, &deck->numCards, sizeof(deck->numCards), 0) <= 0)
+        showError("Error receiving the number of cards");
+    
+    // Ahora recibimos exactamente esa cantidad de cartas
+    int l = deck->numCards * sizeof(unsigned int);
+    
+    if(recv(socket, deck->cards, l, 0) <= 0)
+        showError("Error receiving the cards");
+}
+
 void sendUi(int socket, unsigned int code){
 
 	if(send(socket, &code, sizeof(code), 0) < 0)
