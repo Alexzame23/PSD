@@ -156,22 +156,23 @@ int main(int argc, char *argv[]){
     unsigned int points;
     tDeck deck;
     unsigned int option;
+    unsigned int max;
 
     while(!endOfGame){
-        // Recibir el código que indica el estado actual del juego
+        // Recibir el código del estado
         code = receiveUi(socketfd);
 
-        // Actuar según el código recibido
         switch(code){
             case TURN_BET:
                 {
-                    // Es nuestro turno para apostar
+                    // Apostar
                     stack = receiveUi(socketfd);
                     
                     printf("--- BET STAGE ---\n");
-                    printf("You have %u chips. Introduce your bet (1-%d): ", stack, MAX_BET);
+                    max = (stack < MAX_BET) ? stack : MAX_BET;
+                    printf("You have %u chips. Introduce your bet (1-%d): ", stack, max);
                     
-                    // Leer la apuesta del jugador usando la función auxiliar
+                    // Leer la apuesta del jugador
                     bet = readBet();
                     
                     // Enviar la apuesta al servidor
@@ -182,13 +183,12 @@ int main(int argc, char *argv[]){
                 break;
 
             case TURN_BET_OK:
-                // El servidor confirmó que nuestra apuesta es correcta
                 printf("Your bet was registered correctly\n\n");
                 break;
 
             case TURN_PLAY:
                 {
-                    // Es nuestro turno para jugar (pedir carta o plantarnos)
+                    // Es turno para jugar
                     points = receiveUi(socketfd);
                     receiveDeck(socketfd, &deck);
                     
@@ -209,11 +209,11 @@ int main(int argc, char *argv[]){
 
             case TURN_PLAY_OUT:
                 {
-                    // Nos hemos pasado de 21 puntos
+                    // Se paso de 21 puntos
                     points = receiveUi(socketfd);
                     receiveDeck(socketfd, &deck);
                     
-                    printf("--- BUSTED! ---\n");
+                    printf("--- OOOOH NOOO ---\n");
                     printf("You exceeded 21 points with %u points\n", points);
                     printf("Your final cards:\n");
                     printFancyDeck(&deck);
@@ -223,7 +223,7 @@ int main(int argc, char *argv[]){
 
             case TURN_PLAY_WAIT:
                 {
-                    // Debemos esperar mientras el rival juega
+                    // Turno del rival
                     points = receiveUi(socketfd);
                     receiveDeck(socketfd, &deck);
                     
