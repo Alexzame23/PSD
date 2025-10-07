@@ -164,13 +164,10 @@ void *gameThread(void* args){
 	tThreadArgs* threadArgs = (tThreadArgs*) args;
 	int socket1 = threadArgs->socketPlayer1;
 	int socket2 = threadArgs->socketPlayer2;
-	int *currentS = &socket1;
-	int *otherS = &socket2;
 	free(args);
+
 	tSession sesion;
 	tPlayer current = player1;
-	tDeck *currentDeck = &sesion.player1Deck;
-	unsigned int *currentStack = &sesion.player1Stack;
 	unsigned int endOfGame = FALSE;	
 	unsigned int code;
 
@@ -183,55 +180,205 @@ void *gameThread(void* args){
 	sendMsgToPlayer(socket2, sesion.player1Name);
 
 	initSession(&sesion);	
+	int currentSocket;
+	int opponentSocket;
+	unsigned int *currentBet;
+	unsigned int *opponentBet;
+	unsigned int firstStack;
+	unsigned int secondStack;
+	unsigned int card;
+	int activeSocket, passiveSocket;
+	tDeck *activeDeck;
+	unsigned int activePoints, points1, points2;
 
-	//**Bet Stage**
-	//Player 1
-	sendUi(*currentS, TURN_BET);
-	sendUi(*currentS, sesion.player1Stack);
-	sesion.player1Bet = receiveUi(*currentS);
-	while(sesion.player1Bet < 1 || sesion.player1Bet > MAX_BET || sesion.player1Stack<sesion.player1Bet){
-		sendUi(*currentS, TURN_BET);
-		sesion.player1Bet = receiveUi(*currentS);
-	}
-	sendUi(*currentS, TURN_BET_OK);
-	//Player 2
-	sendUi(*otherS, TURN_BET);
-	sendUi(*otherS, sesion.player2Stack);
-	sesion.player2Bet = receiveUi(*otherS);
-	while(sesion.player2Bet < 1 || sesion.player2Bet > MAX_BET || sesion.player2Stack<sesion.player2Bet){
-		sendUi(*otherS, TURN_BET);
-		sesion.player2Bet = receiveUi(*otherS);
-	}
-	sendUi(*otherS, TURN_BET_OK);
+	while(!endOfGame){
+		currentSocket = (current == player1) ? socket1 : socket2;
+    	opponentSocket = (current == player1) ? socket2 : socket1;
+    	currentBet = (current == player1) ? &sesion.player1Bet : &sesion.player2Bet;
+    	opponentBet = (current == player1) ? &sesion.player2Bet : &sesion.player1Bet;
+    	firstStack = (current == player1) ? sesion.player1Stack : sesion.player2Stack;
+    	secondStack = (current == player1) ? sesion.player2Stack : sesion.player1Stack;
+		//Bet momento
+		//Jug 1
+		sendUi(currentSocket, TURN_BET);
+		sendUi(currentSocket, firstStack);
+		*currentBet = receiveUi(currentSocket);
 
-	for(int i = 0; i < 2; i++){
-    unsigned int card = getRandomCard(&sesion.gameDeck);
-    sesion.player1Deck.cards[sesion.player1Deck.numCards] = card;
-    sesion.player1Deck.numCards++;
-    
-    card = getRandomCard(&sesion.gameDeck);
-    sesion.player2Deck.cards[sesion.player2Deck.numCards] = card;
-    sesion.player2Deck.numCards++;
-	}
-	
-	//**Play stage**
-	for(int i = 0; i < 2; ++i){
-		sendUi(*currentS, TURN_PLAY);
-		sendUi(*otherS, TURN_PLAY_WAIT);
-
-		sendUi(*currentS, calculatePoints(currentDeck));
-		sendDeck(*currentS, *currentDeck);
-
-		code = receiveUi(*currentS);
-
-		while(code == TURN_PLAY_HIT){
-
+		while(*currentBet < 1 || *currentBet > MAX_BET || *currentBet > firstStack){
+			sendUi(currentSocket, TURN_BET);
+			sendUi(currentSocket, firstStack);
+			*currentBet = receiveUi(currentSocket);
 		}
+		sendUi(currentSocket, TURN_BET_OK);
+		//Jug 2
+		sendUi(opponentSocket, TURN_BET);
+		sendUi(opponentSocket, secondStack);
+		*opponentBet = receiveUi(opponentSocket);
 
-		sendUi(*otherS, TURN_PLAY_RIVAL_DONE);
-		current = getNextPlayer(current);
-		swapPlayers(current, &currentDeck, &currentStack, &currentS, &otherS, &sesion);
+		while(*opponentBet < 1 || *opponentBet > MAX_BET || *opponentBet > secondStack){
+			sendUi(opponentSocket, TURN_BET);
+			sendUi(opponentSocket, secondStack);
+			*opponentBet = receiveUi(opponentSocket);
+		}
+		sendUi(opponentSocket, TURN_BET_OK);
+
+		for(int i = 0; i < 2; i++){
+            card = getRandomCard(&sesion.gameDeck);
+            sesion.player1Deck.cards[sesion.player1Deck.numCards] = card;
+            sesion.player1Deck.numCards++;
+            
+            card = getRandomCard(&sesion.gameDeck);
+            sesion.player2Deck.cards[sesion.player2Deck.numCards] = card;
+            sesion.player2Deck.numCards++;
+        }
+
+		for(int playerTurn = 0; playerTurn < 2; playerTurn++){
+            // Determinar quién es el jugador activo y quién el pasivo en este turno
+            
+            if(playerTurn == 0){
+                // En el primer turno, juega quien apostó primero
+                activeSocket = currentSocket;
+                passiveSocket = opponentSocket;
+                activeDeck = (current == player1) ? &sesion.player1Deck : &sesion.player2Deck;
+            } else {
+                // En el segundo turno, juega el otro
+                activeSocket = opponentSocket;
+                passiveSocket = currentSocket;
+                activeDeck = (current == player1) ? &sesion.player2Deck : &sesion.player1Deck;
+            }
+            
+            // Calcular puntos iniciales del jugador activo
+            activePoints = calculatePoints(activeDeck);
+            
+            // Informar a ambos jugadores del inicio del turno
+            sendUi(activeSocket, TURN_PLAY);
+            sendUi(activeSocket, activePoints);
+            sendDeck(activeSocket, *activeDeck);
+            
+            sendUi(passiveSocket, TURN_PLAY_WAIT);
+            sendUi(passiveSocket, activePoints);
+            sendDeck(passiveSocket, *activeDeck);
+            
+            // Recibir la primera acción del jugador activo
+            code = receiveUi(activeSocket);
+            
+            // Bucle mientras el jugador pida cartas
+            while(code == TURN_PLAY_HIT){
+                // Obtener una carta aleatoria del mazo de juego
+                card = getRandomCard(&sesion.gameDeck);
+                
+                // Añadir la carta al deck del jugador activo
+                activeDeck->cards[activeDeck->numCards] = card;
+                activeDeck->numCards++;
+                
+                // Calcular los nuevos puntos
+                activePoints = calculatePoints(activeDeck);
+                
+                // Determinar el código a enviar según si se pasó de 21
+                if(activePoints > GOAL_GAME){
+                    code = TURN_PLAY_OUT;
+                } else {
+                    code = TURN_PLAY;
+                }
+                
+                // Enviar al jugador activo: código, puntos actualizados y deck actualizado
+                sendUi(activeSocket, code);
+                sendUi(activeSocket, activePoints);
+                sendDeck(activeSocket, *activeDeck);
+                
+                // Enviar al jugador pasivo la misma información para que vea la jugada del rival
+                sendUi(passiveSocket, TURN_PLAY_WAIT);
+                sendUi(passiveSocket, activePoints);
+                sendDeck(passiveSocket, *activeDeck);
+                
+                // Si el jugador se pasó de 21, termina su turno automáticamente
+                if(activePoints > GOAL_GAME){
+                    break;
+                }
+                
+                // Recibir la siguiente acción del jugador
+                code = receiveUi(activeSocket);
+            }
+            
+    		if(playerTurn == 0){
+        		if(code == TURN_PLAY_STAND){
+					sendUi(activeSocket, TURN_PLAY_WAIT);
+					sendUi(activeSocket, activePoints);
+					sendDeck(activeSocket, *activeDeck);
+				}
+				sendUi(passiveSocket, TURN_PLAY_RIVAL_DONE);
+    		}
+        }
+
+        //DETERMINAR GANADOR DE LA MANO Y ACTUALIZAR FICHAS
+        
+        points1 = calculatePoints(&sesion.player1Deck);
+        points2 = calculatePoints(&sesion.player2Deck);
+        
+        // Lógica para determinar el ganador
+        if(points1 > GOAL_GAME && points2 > GOAL_GAME){
+            // Ambos se pasaron: EMPATE - cada uno mantiene sus fichas
+            // No hay cambio en los stacks
+        } 
+        else if(points1 > GOAL_GAME){
+            // Solo jugador 1 se pasó: GANA jugador 2
+            sesion.player1Stack -= sesion.player1Bet;
+            sesion.player2Stack += sesion.player1Bet;
+        } 
+        else if(points2 > GOAL_GAME){
+            // Solo jugador 2 se pasó: GANA jugador 1
+            sesion.player2Stack -= sesion.player2Bet;
+            sesion.player1Stack += sesion.player2Bet;
+        } 
+        else if(points1 > points2){
+            // Ninguno se pasó y jugador 1 tiene más puntos: GANA jugador 1
+            sesion.player2Stack -= sesion.player2Bet;
+            sesion.player1Stack += sesion.player2Bet;
+        } 
+        else if(points2 > points1){
+            // Ninguno se pasó y jugador 2 tiene más puntos: GANA jugador 2
+            sesion.player1Stack -= sesion.player1Bet;
+            sesion.player2Stack += sesion.player1Bet;
+        }
+        // Si points1 == points2: EMPATE - no hay cambio en los stacks
+
+        // VERIFICAR SI HAY UN GANADOR FINAL
+        
+        if(sesion.player1Stack == 0){
+            // Jugador 1 se quedó sin fichas: pierde la partida
+            sendUi(socket1, TURN_GAME_LOSE);
+            sendUi(socket2, TURN_GAME_WIN);
+            endOfGame = TRUE;
+        } 
+        else if(sesion.player2Stack == 0){
+            // Jugador 2 se quedó sin fichas: pierde la partida
+            sendUi(socket1, TURN_GAME_WIN);
+            sendUi(socket2, TURN_GAME_LOSE);
+            endOfGame = TRUE;
+        }
+        else {
+            //PREPARAR LA SIGUIENTE MANO
+            
+            // Limpiar los decks de los jugadores para la próxima mano
+            clearDeck(&sesion.player1Deck);
+            clearDeck(&sesion.player2Deck);
+            
+            // Reinicializar el mazo de juego con todas las cartas
+            initDeck(&sesion.gameDeck);
+            
+            // Cambiar el turno: quien apostó segundo ahora apostará primero
+            current = getNextPlayer(current);
+            
+            // Resetear las apuestas a 0
+            sesion.player1Bet = 0;
+            sesion.player2Bet = 0;
+        }
+
 	}
+
+	close(socket1);
+    close(socket2);
+
 	return NULL;	
 }
 

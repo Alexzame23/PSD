@@ -100,6 +100,7 @@ int main(int argc, char *argv[]){
 	unsigned int endOfGame;				/** Flag to control the end of the game */
 	tString playerName;					/** Name of the player */
 	unsigned int code;					/** Code */
+	tString rivalName;
 
 
 	// Check arguments!
@@ -121,8 +122,6 @@ int main(int argc, char *argv[]){
 		showError("Error while creating the socket");
 	}
 
-	serverIP = argv[1];
-
 	memset(&server_address, 0, sizeof(server_address));
 
 	server_address.sin_family = AF_INET;
@@ -134,71 +133,140 @@ int main(int argc, char *argv[]){
 	}
 
 	do{
-		memset(playerName, 0, STRING_LENGTH);
-		printf("Enter player name:");
-		fgets(playerName, STRING_LENGTH-1, stdin);
-	}while(strlen(playerName) <= 2);
+        memset(playerName, 0, STRING_LENGTH);
+        printf("Enter player name: ");
+        fgets(playerName, STRING_LENGTH-1, stdin);
+        playerName[strlen(playerName)-1] = '\0';
+    }while(strlen(playerName) <= 1);
 
-	sendMsgToServer(socketfd, playerName);
+    // Enviar el nombre al servidor
+    sendMsgToServer(socketfd, playerName);
 
-	endOfGame = FALSE;
+    //RECEPCIÓN DEL NOMBRE DEL RIVAL
+    printf("Creating the play room\n\n");
+    receiveMsg(socketfd, rivalName);
+    printf("You are playing against %s\n\n", rivalName);
+    printf("Game starts!\n\n");
 
-	printf("Creating the play room\n\n");
+    endOfGame = FALSE;
 
-	receiveMsg(socketfd, playerName);
-	printf("You are playing againts %s\n\n", playerName);
-	printf("Game starts!\n\n");
+    //BUCLE PRINCIPAL DEL JUEGO
+    unsigned int stack;
+    unsigned int bet;
+    unsigned int points;
+    tDeck deck;
+    unsigned int option;
 
-	unsigned int stack;
-	unsigned int bet;
+    while(!endOfGame){
+        // Recibir el código que indica el estado actual del juego
+        code = receiveUi(socketfd);
 
-	code = receiveUi(socketfd);
+        // Actuar según el código recibido
+        switch(code){
+            case TURN_BET:
+                {
+                    // Es nuestro turno para apostar
+                    stack = receiveUi(socketfd);
+                    
+                    printf("--- BET STAGE ---\n");
+                    printf("You have %u chips. Introduce your bet (1-%d): ", stack, MAX_BET);
+                    
+                    // Leer la apuesta del jugador usando la función auxiliar
+                    bet = readBet();
+                    
+                    // Enviar la apuesta al servidor
+                    sendUi(socketfd, bet);
+                    
+                    printf("\n");
+                }
+                break;
 
-	do{
-		switch (code){
-			case TURN_BET:
-				stack = receiveUi(socketfd);
-				printf("--- BET STAGE ---\n");
-                printf("You have %u chips. Introduce your bet (1-%d): \n", stack, MAX_BET);
-				bet = readBet();
-				sendUi(socketfd, bet);
-				code = receiveUi(socketfd);
-				if(code == TURN_BET_OK){
-					printf("Your bet was registered correctly\n\n");
-					code = receiveUi(socketfd);
+            case TURN_BET_OK:
+                // El servidor confirmó que nuestra apuesta es correcta
+                printf("Your bet was registered correctly\n\n");
+                break;
 
-				}
-				break;
-			case TURN_BET_OK:
-				printf("Your bet was registered correctly\n\n");
-				break;
-			case TURN_PLAY:
-				
-				break;
-			case TURN_PLAY_OUT:
+            case TURN_PLAY:
+                {
+                    // Es nuestro turno para jugar (pedir carta o plantarnos)
+                    points = receiveUi(socketfd);
+                    receiveDeck(socketfd, &deck);
+                    
+                    printf("--- YOUR TURN ---\n");
+                    printf("Your current points: %u\n", points);
+                    printf("Your cards:\n");
+                    printFancyDeck(&deck);
+                    
+                    // Leer la acción del jugador
+                    option = readOption();
+                    
+                    // Enviar la acción al servidor
+                    sendUi(socketfd, option);
+                    
+                    printf("\n");
+                }
+                break;
 
-				break;
-			case TURN_PLAY_RIVAL_DONE:
-				printf("Your rival finish their turn. Now it's your turn\n\n");
-				break;
-			case TURN_PLAY_WAIT:
+            case TURN_PLAY_OUT:
+                {
+                    // Nos hemos pasado de 21 puntos
+                    points = receiveUi(socketfd);
+                    receiveDeck(socketfd, &deck);
+                    
+                    printf("--- BUSTED! ---\n");
+                    printf("You exceeded 21 points with %u points\n", points);
+                    printf("Your final cards:\n");
+                    printFancyDeck(&deck);
+                    printf("\n");
+                }
+                break;
 
-				break;
-			case TURN_GAME_WIN:
-				printf("Congratulations, you win!!! You're an expert gambling addict!!\n\n");
-				break;
-			case TURN_GAME_LOSE:
-				printf("Noob\n\n");
-				endOfGame = TRUE;
-				break;
-			default:
-				break;
-		}
+            case TURN_PLAY_WAIT:
+                {
+                    // Debemos esperar mientras el rival juega
+                    points = receiveUi(socketfd);
+                    receiveDeck(socketfd, &deck);
+                    
+                    printf("--- WAITING FOR RIVAL ---\n");
+                    printf("Rival's current points: %u\n", points);
+                    printf("Rival's cards:\n");
+                    printFancyDeck(&deck);
+                    printf("\n");
+                }
+                break;
 
-	}while(!endOfGame);
+            case TURN_PLAY_RIVAL_DONE:
+                // El rival ha terminado su turno
+                printf("Your rival has finished their turn. Now it's your turn\n\n");
+                break;
 
-	if(close(socketfd) == -1){
-		showError("Error while closing the client socket");
-	}
+            case TURN_GAME_WIN:
+                printf("========================================\n");
+                printf("   CONGRATULATIONS, YOU WIN!\n");
+                printf("   You're an expert gambling addict!!\n");
+                printf("========================================\n\n");
+                endOfGame = TRUE;
+                break;
+
+            case TURN_GAME_LOSE:
+                printf("========================================\n");
+                printf("   GAME OVER - YOU LOSE\n");
+                printf("   Better luck next time!\n");
+                printf("========================================\n\n");
+                endOfGame = TRUE;
+                break;
+
+            default:
+                //printf("Unknown code received: %u\n", code);
+                break;
+        }
+    }
+
+    //CIERRE DEL SOCKET
+    if(close(socketfd) == -1){
+        showError("Error while closing the client socket");
+    }
+
+	return 0;
 		
 }
