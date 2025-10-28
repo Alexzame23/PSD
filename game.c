@@ -5,61 +5,59 @@ void showError(const char *msg){
 	exit(0);
 }
 
-void showCode (unsigned int code){
+void showCodeText (unsigned int code){
 
-	tString string;
-	
+	xsd__string string;
+
 		// Reset
+		string = (xsd__string) malloc (STRING_LENGTH);
 		memset (string, 0, STRING_LENGTH);
 
-		switch(code){ 
-
-			case TURN_BET:
-				strcpy (string, "TURN_BET");
-				break;
-
-			case TURN_BET_OK:
-				strcpy (string, "TURN_BET_OK");
-				break;
+		switch(code){
 
 			case TURN_PLAY:
 				strcpy (string, "TURN_PLAY");
 				break;
 
-			case TURN_PLAY_HIT:
-				strcpy (string, "TURN_PLAY_HIT");
+			case TURN_WAIT:
+				strcpy (string, "TURN_WAIT");
 				break;
 
-			case TURN_PLAY_STAND:
-				strcpy (string, "TURN_PLAY_STAND");
+			case PLAYER_HIT_CARD:
+				strcpy (string, "PLAYER_HIT_CARD");
 				break;
 
-			case TURN_PLAY_OUT:
-				strcpy (string, "TURN_PLAY_OUT");
+			case PLAYER_STAND:
+				strcpy (string, "PLAYER_STAND");
 				break;
 
-			case TURN_PLAY_WAIT:
-				strcpy (string, "TURN_PLAY_WAIT");
+			case GAME_WIN:
+				strcpy (string, "GAME_WIN");
 				break;
 
-			case TURN_PLAY_RIVAL_DONE:
-				strcpy (string, "TURN_PLAY_RIVAL_DONE");
+			case GAME_LOSE:
+				strcpy (string, "GAME_LOSE");
 				break;
+                
+            case ERROR_NAME_REPEATED:
+                strcpy (string, "ERROR_NAME_REPEATED");
+                break;
 
-			case TURN_GAME_WIN:
-				strcpy (string, "TURN_GAME_WIN");
-				break;
+            case ERROR_PLAYER_NOT_FOUND:
+                strcpy (string, "ERROR_PLAYER_NOT_FOUND");
+                break;
 
-			case TURN_GAME_LOSE:
-				strcpy (string, "TURN_GAME_LOSE");
-				break;
+            case ERROR_SERVER_FULL:
+                strcpy (string, "ERROR_SERVER_FULL");
+                break;
 
 			default:
 				strcpy (string, "UNKNOWN CODE");
-		    	break;
+				break;
 		}
 
-	printf ("Received:%s\n", string);		
+		printf ("Received code: %s\n", string);
+		free (string);	
 }
 
 char suitToChar (unsigned int number){
@@ -113,36 +111,34 @@ char cardNumberToChar (unsigned int number){
 	return numberChar;
 }
 
-void printDeck (tDeck* deck){
+void printDeck (blackJackns__tDeck *deck){
 
-	// Print info for player 1
-	printf ("%d cards -> ", deck->numCards);
+	printf ("%d cards -> ", deck->__size);
 
-	for (int i=0; i<deck->numCards; i++)
+	for (int i=0; i<deck->__size; i++)
 		printf("%c%c ", cardNumberToChar (deck->cards[i]), suitToChar (deck->cards[i]));
 
 	printf("\n");
 }
 
-void printFancyDeck (tDeck* deck){
-
-	// Print info for player 1
-	printf ("%d cards\n", deck->numCards);
+void printFancyDeck (blackJackns__tDeck *deck){
+	
+	printf ("%d cards\n", deck->__size);
 
 	// Print the first line
-	for (int currentCard=0; currentCard<deck->numCards; currentCard++)
+	for (int currentCard=0; currentCard<deck->__size; currentCard++)
 		printf ("  ___ ");
 
 	printf ("\n");
 
 	// Print the second line
-	for (int currentCard=0; currentCard<deck->numCards; currentCard++)
+	for (int currentCard=0; currentCard<deck->__size; currentCard++)
 		printf (" |%c  |", cardNumberToChar (deck->cards[currentCard]));
 
 	printf ("\n");
 
 	// Print the third line
-	for (int currentCard=0; currentCard<deck->numCards; currentCard++){
+	for (int currentCard=0; currentCard<deck->__size; currentCard++){
 		if (suitToChar (deck->cards[currentCard]) == 'c')
 			printf (" | \u2663 |");
 		else if (suitToChar (deck->cards[currentCard]) == 'd')
@@ -152,17 +148,44 @@ void printFancyDeck (tDeck* deck){
 		else if (suitToChar (deck->cards[currentCard]) == 'h')
 			printf (" | \u2665 |");
 	}
-		//printf (" | %c |", suitToChar (deck->cards[currentCard]));
-
+		
 	printf ("\n");
 
 	// Print the fourth line
-	for (int currentCard=0; currentCard<deck->numCards; currentCard++)
+	for (int currentCard=0; currentCard<deck->__size; currentCard++)
 		printf (" |__%c|", cardNumberToChar (deck->cards[currentCard]));
 
 	printf ("\n");
 }
 
-unsigned int min (unsigned int a, unsigned int b){
-	return (a<b?a:b);
+void printStatus (blackJackns__tBlock *status, int debug){
+
+	if (debug)
+		showCodeText (status->code);
+	
+	// Set end of message
+	(status->msgStruct).msg[(status->msgStruct).__size] = 0;
+
+	// Show message received from server
+	printf ("%s\n", (status->msgStruct).msg);
+
+	// Show deck
+	printFancyDeck (&(status->deck));
+}
+
+void allocDeck (struct soap *soap, blackJackns__tDeck* deck){
+	deck->cards = (unsigned int *) soap_malloc (soap, DECK_SIZE * sizeof (unsigned int));
+	deck->__size = 0;
+}
+
+void allocClearMessage (struct soap *soap, blackJackns__tMessage* msg){
+	msg->msg = (xsd__string) soap_malloc (soap, STRING_LENGTH);
+	memset(msg->msg, 0, STRING_LENGTH);	
+	msg->__size = STRING_LENGTH;
+}
+
+void allocClearBlock (struct soap *soap, blackJackns__tBlock* block){
+	block->code = -1;
+	allocClearMessage (soap, &(block->msgStruct));
+	allocDeck (soap, &(block->deck));
 }

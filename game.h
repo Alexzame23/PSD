@@ -1,76 +1,7 @@
-#include <stdio.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/stat.h>
-#include <arpa/inet.h>
- 
-
-/** Player stands */
-#define TURN_PLAY_STAND 0
-
-/** Player hits */
-#define TURN_PLAY_HIT 1
-
-/** Bet */
-#define TURN_BET 2
-
-/** The bet is correct */
-#define TURN_BET_OK 3
-
-/** Play (player's turn) */
-#define TURN_PLAY 4
-
-/** Player exceeds 21 */
-#define TURN_PLAY_OUT 5
-
-/** Player must wait and see the rival's play */
-#define TURN_PLAY_WAIT 6
-
-/** Rival is done */
-#define TURN_PLAY_RIVAL_DONE 7
-
-/** Player wins */
-#define TURN_GAME_WIN 8
-
-/** Player loses */
-#define TURN_GAME_LOSE 9
-
-/** Deck's size */
-#define DECK_SIZE 52
-
-/** Number of suits in the deck */
-#define SUIT_SIZE 13
-
-/** Maximum bet */
-#define MAX_BET 5
-
-/** True value */
-#define TRUE 1
-
-/** False value */
-#define FALSE 0
-
-/** Length for tString */
-#define STRING_LENGTH 128
-
-/** Type for names, messages and this kind of variables */
-typedef char tString [STRING_LENGTH];
-
-/** Structure that represents a deck */
-typedef struct{
-	unsigned int cards [DECK_SIZE];
-	unsigned int numCards;
-}tDeck;
-
+#include "soapH.h"
 
 /**
- * Function that shows an error message.
+ * Shows an error message and ends the execution.
  *
  * @param msg Error message.
  */
@@ -81,21 +12,21 @@ void showError(const char *msg);
  *
  * @param code Received code.
  */
-void showCode (unsigned int code);
+void showCodeText (unsigned int code);
 
 /**
  * Gets the suit of a given card.
  *
- * @param number Given card.
- * @return Suit of the given card.
+ * @param number Card.
+ * @return Suit of the card.
  */
 char suitToChar (unsigned int number);
 
 /**
- * Gets the number of a given card.
+ * Gets the value of a given card.
  *
- * @param number Given card.
- * @return Number of the given card in a char.
+ * @param number Card.
+ * @return Value of the card.
  */
 char cardNumberToChar (unsigned int number);
 
@@ -104,20 +35,43 @@ char cardNumberToChar (unsigned int number);
  *
  * @param deck Deck to be shown.
  */
-void printDeck (tDeck* deck);
+void printDeck (blackJackns__tDeck *deck);
 
 /**
  * Prints a deck in a fancy way :)
  *
  * @param deck Deck to be shown.
  */
-void printFancyDeck (tDeck* deck);
+void printFancyDeck (blackJackns__tDeck *deck);
 
-/**
- * Calculates the minimum of two given numbers.
- *
- * @param a First number.
- * @param b Second number.
- * @return Minimun value of the two given numbers.
+/** 
+ * Prints the current status of the game.
+ * 
+ * @param status Status of the game. 
+ * @param debug This parameter indicates if the code is also displayed.
  */
-unsigned int min (unsigned int a, unsigned int b);
+void printStatus (blackJackns__tBlock *status, int debug);
+
+/** 
+ * Allocates memory for one deck.
+ * 
+ * @param soap Soap context.
+ * @param Deck structure where the cards will be stored.
+ */
+void allocDeck (struct soap *soap, blackJackns__tDeck* deck);
+
+/** 
+ * Allocates and clears memory for one message structure.
+ * 
+ * @param soap Soap context.
+ * @param Message structure where the message will be stored.
+ */
+void allocClearMessage (struct soap *soap, blackJackns__tMessage* msg);
+
+/** 
+ * Allocates memory for a blackJackns__tBlock structure.
+ * 
+ * @param soap Soap context.
+ * @param Structure where the code, message and deck will be stored.
+ */
+void allocClearBlock (struct soap *soap, blackJackns__tBlock* block);
